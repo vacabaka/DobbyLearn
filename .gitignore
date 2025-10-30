@@ -8,6 +8,7 @@
 *.sqlite
 *.sqlite3
 dobbylearn.db
+db/
 
 # Python
 __pycache__/

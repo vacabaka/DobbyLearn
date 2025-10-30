@@ -11,7 +11,7 @@ from models import Base, User, WordGroup, Word
 logger = logging.getLogger(__name__)
 
 class DatabaseManager:
-    def __init__(self, database_url: str = "sqlite+aiosqlite:///dobbylearn.db"):
+    def __init__(self, database_url: str = "sqlite+aiosqlite:///db/dobbylearn.db"):
         self.database_url = database_url
         self.engine = create_async_engine(database_url, echo=False)
         self.async_session = sessionmaker(
