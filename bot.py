@@ -504,7 +504,7 @@ Your base language: **{self.LANGUAGES.get(native_lang, native_lang)}**
         db_user = await self.db.get_or_create_user(user_id)
         
         # Проверить настройку языка
-        setup_complete, native_lang = await self.db.get_user_language_setup_status(user_id)
+        setup_complete, _ = await self.db.get_user_language_setup_status(user_id)
         if not setup_complete:
             await self.show_language_selection(update)
             return
