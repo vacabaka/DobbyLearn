@@ -536,6 +536,9 @@ Your base language: **{self.LANGUAGES.get(native_lang, native_lang)}**
                 native_lang = g.native_language  # БРАТЬ native_lang ИЗ ГРУППЫ!
                 break
         
+        # DEBUG: Логирование для отладки
+        logger.info(f"🔍 DEBUG: user_id={user_id}, group_id={group_id}, target_lang={target_lang}, native_lang={native_lang}, total_groups={len(groups)}")
+        
         # Распарсить слова
         words = await self.parse_words(text)
         
