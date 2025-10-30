@@ -334,6 +334,9 @@ Select the **language you're learning** in this group:
             db_user = await self.db.get_or_create_user(user_id)
             await self.db.update_user_language_setup(db_user.id, lang_code)
             
+            # Обновить язык во всех существующих группах пользователя
+            await self.db.update_all_user_groups_language(db_user.id, lang_code)
+            
             keyboard = [
                 [InlineKeyboardButton("➕ Create Group", callback_data="create_group")],
                 [InlineKeyboardButton("🎓 Open DobbyLearn", 
@@ -344,6 +347,7 @@ Select the **language you're learning** in this group:
             
             await query.edit_message_text(
                 f"✅ Base language set: **{self.LANGUAGES[lang_code]}**\n\n"
+                f"All your groups updated to translate to {self.LANGUAGES[lang_code]}!\n\n"
                 f"Now you can create groups and add words!",
                 parse_mode='Markdown',
                 reply_markup=reply_markup
@@ -522,12 +526,14 @@ Your base language: **{self.LANGUAGES.get(native_lang, native_lang)}**
                 group_id = groups[0].id
                 self.user_current_group[user_id] = group_id
         
-        # Получить язык группы
+        # Получить язык группы (И native_lang из группы!)
         groups = await self.db.get_user_groups(db_user.id)
         target_lang = "en"  # По умолчанию английский
+        native_lang = "ru"  # По умолчанию русский
         for g in groups:
             if g.id == group_id:
                 target_lang = g.target_language
+                native_lang = g.native_language  # БРАТЬ native_lang ИЗ ГРУППЫ!
                 break
         
         # Распарсить слова

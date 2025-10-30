@@ -378,6 +378,23 @@ class DatabaseManager:
                 await session.rollback()
                 return False
     
+    async def update_all_user_groups_language(self, user_id: int, native_language: str) -> bool:
+        """Обновить native_language во всех группах пользователя"""
+        async with self.get_session() as session:
+            try:
+                from models import WordGroup
+                query = update(WordGroup).where(WordGroup.user_id == user_id).values(
+                    native_language=native_language
+                )
+                result = await session.execute(query)
+                await session.commit()
+                logger.info(f"Обновлено {result.rowcount} групп для пользователя {user_id} на язык {native_language}")
+                return True
+            except Exception as e:
+                logger.error(f"Ошибка обновления языка в группах: {e}")
+                await session.rollback()
+                return False
+    
     async def get_user_language_setup_status(self, telegram_id: int) -> tuple:
         """Проверить завершена ли настройка языка"""
         async with self.get_session() as session:
