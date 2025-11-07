@@ -1702,6 +1702,12 @@
                     ankiContainer.style.display = 'block';
                 }
                 
+                // Re-enable card interactions
+                const cardEl = document.getElementById('card');
+                if (cardEl) {
+                    cardEl.style.pointerEvents = 'auto';
+                }
+                
                 showCard();
                 // Initialize buttons after words are loaded
                 setTimeout(() => {
@@ -1709,18 +1715,53 @@
                     updateAnkiIntervals();
                 }, 100);
             } else {
-                // Show message to add words via bot
-                document.getElementById('word').textContent = 'Add words via bot';
-                const pron2 = document.getElementById('pronunciation');
-                if (pron2) pron2.textContent = '';
-                document.getElementById('back-translation').textContent = 'Use /add command in bot';
+                // Пустая группа - скрыть кнопки и показать сообщение
+                console.log('⚠️ Empty group - hiding Anki buttons');
                 
-                // Show Anki buttons even with no words
+                document.getElementById('word').textContent = '📚 No words yet!';
+                const pron2 = document.getElementById('pronunciation');
+                if (pron2) pron2.textContent = 'Add words via bot';
+                document.getElementById('back-translation').textContent = '';
+                document.getElementById('example-text').innerHTML = '';
+                document.getElementById('example-translation').textContent = '';
+                
+                // Скрыть сложность
+                document.getElementById('difficulty').innerHTML = '';
+                
+                // Скрыть Anki кнопки
                 const ankiContainer = document.getElementById('anki-buttons');
                 if (ankiContainer) {
-                    ankiContainer.style.display = 'block';
+                    ankiContainer.style.display = 'none';
                 }
-                initAnkiButtons();
+                
+                // Скрыть все кнопки
+                const ankiButtons = document.querySelectorAll('.anki-btn');
+                ankiButtons.forEach(btn => {
+                    btn.style.display = 'none';
+                    btn.disabled = true;
+                });
+                
+                // Скрыть controls
+                const controls = document.querySelector('.controls');
+                if (controls) {
+                    controls.style.display = 'none';
+                }
+                
+                // Отключить взаимодействие с карточкой
+                const card = document.getElementById('card');
+                if (card) {
+                    card.classList.remove('flipped');
+                    card.style.pointerEvents = 'none';
+                }
+                
+                // Скрыть peek dog
+                const peekDog = document.getElementById('peek-dog');
+                if (peekDog) {
+                    peekDog.classList.remove('show');
+                    peekDog.classList.add('hide');
+                }
+                
+                console.log('✅ Empty group UI state applied');
             }
         }
 

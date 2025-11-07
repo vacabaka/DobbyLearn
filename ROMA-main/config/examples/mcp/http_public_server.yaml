@@ -1,0 +1,38 @@
+# MCP HTTP Public Server Example
+# Demonstrates using a public MCP server (CoinGecko) with NO setup required
+
+# Key Concept: HTTP MCP servers are remote, no installation needed
+
+agents:
+  executor:
+    llm:
+      model: openai/gpt-4o-mini
+      temperature: 0.3
+      max_tokens: 4000
+    prediction_strategy: react
+    toolkits:
+      - class_name: MCPToolkit
+        enabled: true
+        toolkit_config:
+          server_name: coingecko_public
+          server_type: http
+          url: "https://mcp.api.coingecko.com/sse"
+          use_storage: true  # Store large responses
+          storage_threshold_kb: 100
+
+      - class_name: CalculatorToolkit
+        enabled: true
+
+runtime:
+  max_depth: 4
+  enable_logging: true
+
+# MCP Server Features:
+# - No installation required
+# - No API key needed
+# - 15,000+ cryptocurrencies
+# - Real-time market data
+# - Historical OHLCV data
+
+# Usage:
+#   uv run python -m roma_dspy.cli solve "What is the current price of Bitcoin and Ethereum?" --config config/examples/mcp/http_public_server.yaml

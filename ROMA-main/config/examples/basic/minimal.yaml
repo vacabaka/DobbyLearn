@@ -1,0 +1,19 @@
+# Minimal Configuration Example
+# Demonstrates the simplest possible ROMA-DSPy setup
+
+agents:
+  executor:
+    llm:
+      model: openai/gpt-4o-mini
+      temperature: 0.3
+    prediction_strategy: react
+    toolkits:
+      - class_name: FileToolkit
+        enabled: true
+
+runtime:
+  max_depth: 3
+  enable_logging: true
+
+# Usage:
+#   uv run python -m roma_dspy.cli solve "Create a file called hello.txt with content 'Hello World'" --config config/examples/basic/minimal.yaml

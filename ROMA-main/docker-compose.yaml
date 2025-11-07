@@ -1,0 +1,193 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database for checkpoint/execution persistence
+  postgres:
+    image: postgres:16-alpine
+    container_name: roma-dspy-postgres
+    env_file:
+      - .env
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-roma_dspy}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./docker/init-mlflow-db.sql:/docker-entrypoint-initdb.d/init-mlflow-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - roma-network
+    restart: unless-stopped
+
+  # MinIO Object Storage (S3-compatible for MLflow artifacts)
+  minio:
+    image: minio/minio:latest
+    container_name: roma-dspy-minio
+    env_file:
+      - .env
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - roma-network
+    restart: unless-stopped
+
+  # MinIO Bucket Setup (creates mlflow bucket on startup)
+  minio-setup:
+    image: minio/mc:latest
+    container_name: roma-dspy-minio-setup
+    env_file:
+      - .env
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set myminio http://minio:9000 ${MINIO_ROOT_USER:-minioadmin} ${MINIO_ROOT_PASSWORD:-minioadmin123};
+      mc mb myminio/mlflow --ignore-existing;
+      mc anonymous set download myminio/mlflow;
+      exit 0;
+      "
+    networks:
+      - roma-network
+
+  # ROMA-DSPy API Server
+  roma-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: roma-dspy-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      # Override database URL to use docker service name
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-roma_dspy}
+      POSTGRES_ENABLED: "true"
+      # MLflow tracking URI (single variable). If not set, default to in-network service.
+      # To run entirely in Docker, set this to http://mlflow:5000 in your .env.
+      MLFLOW_TRACKING_URI: ${MLFLOW_TRACKING_URI:-http://mlflow:5000}
+      # S3/MinIO configuration for artifact storage
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: s3://mlflow
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_S3_ENDPOINT_URL: http://minio:9000
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      # Application code (for development, comment out for production)
+      - ./src:/app/src
+      - ./config:/app/config:ro
+      - ./prompt_optimization:/app/prompt_optimization
+      - ./.env:/app/.env:ro  # Mount .env for optimization scripts
+
+      # Persistent data
+      - ./logs:/app/logs
+      - ./executions:/app/executions
+      - checkpoints_data:/app/.checkpoints
+      - cache_data:/app/.cache
+
+      # S3 mount point (mount S3 on host first, then share via volume)
+      # Host must run: scripts/setup_local.sh to mount S3 to STORAGE_BASE_PATH
+      - ${STORAGE_BASE_PATH:-/opt/sentient}:${STORAGE_BASE_PATH:-/opt/sentient}:rw
+
+    networks:
+      - roma-network
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    restart: unless-stopped
+
+  # MLflow Tracking Server (Optional - for experiment tracking)
+  mlflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.mlflow
+    container_name: roma-dspy-mlflow
+    env_file:
+      - .env
+    ports:
+      - "${MLFLOW_PORT:-5000}:5000"
+    environment:
+      MLFLOW_BACKEND_STORE_URI: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/mlflow
+      # Use S3/MinIO for artifact storage
+      MLFLOW_DEFAULT_ARTIFACT_ROOT: s3://mlflow
+      MLFLOW_SERVER_ALLOWED_HOSTS: "*"
+      MLFLOW_SERVER_CORS_ALLOWED_ORIGINS: "*"
+      # MinIO/S3 configuration
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin123}
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_S3_ENDPOINT_URL: http://minio:9000
+    networks:
+      - roma-network
+    command:
+      - mlflow
+      - server
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "5000"
+      - --backend-store-uri
+      - postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/mlflow
+      - --default-artifact-root
+      - s3://mlflow
+      - --serve-artifacts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://localhost:5000/\")' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    profiles:
+      - observability  # Only start with: docker-compose --profile observability up
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  checkpoints_data:
+    driver: local
+  cache_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  roma-network:
+    driver: bridge

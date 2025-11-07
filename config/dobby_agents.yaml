@@ -1,0 +1,114 @@
+# ROMA Configuration for DobbyLearn
+# Настройка агентов для переводов и генерации примеров
+
+# Общие настройки
+general:
+  max_retries: 3
+  timeout: 30
+  enable_caching: true
+
+# Настройки LLM моделей
+llm_providers:
+  # Fireworks AI - основная модель Dobby
+  dobby:
+    provider: "fireworks_ai"
+    model: "accounts/sentientfoundation/models/dobby-unhinged-llama-3-3-70b-new"
+    temperature: 0.7
+    max_tokens: 500
+    cache: true
+    use_for:
+      - example_generation
+      - creative_tasks
+  
+  # Точные переводы (fallback на Fireworks если нет OpenRouter/OpenAI)
+  translation:
+    provider: "fireworks_ai"  # будет заменено на openrouter/openai если доступны
+    model: "accounts/fireworks/models/llama-v3p3-70b-instruct"
+    temperature: 0.2
+    max_tokens: 300
+    cache: true
+    use_for:
+      - word_translation
+      - accurate_responses
+  
+  # Планирование задач
+  planner:
+    provider: "fireworks_ai"
+    model: "accounts/fireworks/models/llama-v3p3-70b-instruct"
+    temperature: 0.5
+    max_tokens: 800
+    cache: true
+    use_for:
+      - task_decomposition
+      - complex_requests
+
+# Настройки ROMA модулей
+agents:
+  # Executor для генерации примеров
+  example_executor:
+    llm: "dobby"
+    prediction_strategy: "cot"  # chain of thought
+    track_usage: true
+    tools: []
+  
+  # Executor для переводов
+  translation_executor:
+    llm: "translation"
+    prediction_strategy: "cot"
+    track_usage: true
+    tools: []
+  
+  # Planner для сложных задач
+  planner:
+    llm: "planner"
+    prediction_strategy: "cot"
+    track_usage: true
+  
+  # Aggregator для объединения результатов
+  aggregator:
+    llm: "translation"
+    prediction_strategy: "cot"
+
+# Настройки стилей примеров
+example_styles:
+  casual:
+    description: "Natural, conversational, friendly"
+    temperature_boost: 0.1
+    max_length: 150
+  
+  formal:
+    description: "Professional, academic, business"
+    temperature_boost: -0.1
+    max_length: 200
+  
+  short:
+    description: "Very brief, 2-7 words"
+    temperature_boost: -0.2
+    max_length: 50
+    strict_word_limit: true
+  
+  slang:
+    description: "Modern, trendy, street language"
+    temperature_boost: 0.2
+    max_length: 150
+  
+  contextual:
+    description: "Embedded in specific situation"
+    temperature_boost: 0.0
+    max_length: 200
+
+# Настройки качества
+quality:
+  min_translation_length: 1
+  max_translation_length: 100
+  min_example_words: 2
+  max_example_words_short: 7
+  enable_profanity_filter: true
+  enable_quality_checks: true
+
+# Производительность
+performance:
+  enable_parallel_generation: true
+  max_concurrent_requests: 3
+  cache_translations: true
+  cache_examples: false  # примеры должны быть уникальными

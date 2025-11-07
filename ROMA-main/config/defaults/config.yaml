@@ -1,0 +1,111 @@
+# Optional base configuration for ROMA-DSPy
+# This file overrides Pydantic defaults where needed
+
+project: roma-dspy
+version: "0.1.0"
+environment: ${oc.env:ROMA_ENV,development}
+
+# Override agent defaults where needed
+agents:
+  planner:
+    agent_config:
+      max_subtasks: 15  # Override default 10
+
+# Runtime configuration overrides
+runtime:
+  verbose: ${oc.env:ROMA_VERBOSE,false}
+  max_depth: ${oc.env:ROMA_MAX_DEPTH,5}
+  enable_logging: ${oc.env:ROMA_ENABLE_LOGGING,false}
+  log_level: ${oc.env:ROMA_LOG_LEVEL,INFO}
+
+  # Cache configuration
+  cache:
+    enabled: ${oc.env:ROMA_CACHE_ENABLED,true}
+    enable_disk_cache: ${oc.env:ROMA_CACHE_DISK,true}
+    enable_memory_cache: ${oc.env:ROMA_CACHE_MEMORY,true}
+    disk_cache_dir: ${oc.env:DSPY_CACHE_DIR,.cache/dspy}
+    disk_size_limit_bytes: 30000000000  # 30GB
+    memory_max_entries: 1000000
+
+# Resilience configuration overrides
+resilience:
+  retry_strategy: ${oc.env:ROMA_RETRY_STRATEGY,exponential_backoff}
+  max_retries: ${oc.env:ROMA_MAX_RETRIES,3}
+
+  # Checkpoint configuration
+  checkpoint:
+    enabled: ${oc.env:ROMA_CHECKPOINT_ENABLED,true}
+    storage_path: ${oc.env:ROMA_CHECKPOINT_PATH,.checkpoints}
+    max_checkpoints: ${oc.env:ROMA_MAX_CHECKPOINTS,10}
+    max_age_hours: ${oc.env:ROMA_CHECKPOINT_MAX_AGE_HOURS,24.0}
+    compress_checkpoints: ${oc.env:ROMA_CHECKPOINT_COMPRESS,true}
+    verify_integrity: ${oc.env:ROMA_CHECKPOINT_VERIFY,true}
+
+# Storage configuration
+storage:
+  base_path: ${oc.env:STORAGE_BASE_PATH,.tmp/sentient}
+  max_file_size: 104857600  # 100MB
+  buffer_size: 1048576      # 1MB
+
+  # PostgreSQL persistence
+  postgres:
+    enabled: ${oc.env:POSTGRES_ENABLED,false}
+    connection_url: ${oc.env:DATABASE_URL,postgresql+asyncpg://localhost/roma_dspy}
+    pool_size: ${oc.env:POSTGRES_POOL_SIZE,5}
+    max_overflow: ${oc.env:POSTGRES_MAX_OVERFLOW,10}
+    pool_timeout: ${oc.env:POSTGRES_POOL_TIMEOUT,30.0}
+    echo_sql: ${oc.env:SQL_ECHO,false}
+
+# Observability configuration
+observability:
+  mlflow:
+    enabled: ${oc.env:MLFLOW_ENABLED,false}
+    tracking_uri: ${oc.env:MLFLOW_TRACKING_URI,http://127.0.0.1:5000}
+    experiment_name: ${oc.env:MLFLOW_EXPERIMENT,ROMA-DSPy}
+    log_traces: true
+    log_traces_from_compile: false  # Disabled by default (expensive)
+    log_compiles: true
+    log_evals: true
+
+  # Toolkit metrics and traceability
+  toolkit_metrics:
+    enabled: ${oc.env:TOOLKIT_METRICS_ENABLED,true}
+    track_lifecycle: ${oc.env:TOOLKIT_TRACK_LIFECYCLE,true}
+    track_invocations: ${oc.env:TOOLKIT_TRACK_INVOCATIONS,true}
+    sample_rate: ${oc.env:TOOLKIT_SAMPLE_RATE,1.0}  # 1.0 = 100% sampling
+    persist_to_db: ${oc.env:TOOLKIT_PERSIST_DB,true}
+    persist_to_mlflow: ${oc.env:TOOLKIT_PERSIST_MLFLOW,false}
+    batch_size: ${oc.env:TOOLKIT_BATCH_SIZE,100}
+    async_persist: ${oc.env:TOOLKIT_ASYNC_PERSIST,true}
+
+  # Event traces for execution flow tracking
+  event_traces:
+    enabled: ${oc.env:EVENT_TRACES_ENABLED,true}
+    track_execution_events: ${oc.env:EVENT_TRACK_EXECUTION,true}
+    track_module_events: ${oc.env:EVENT_TRACK_MODULES,true}
+    track_task_lifecycle: ${oc.env:EVENT_TRACK_LIFECYCLE,true}
+    track_failures: ${oc.env:EVENT_TRACK_FAILURES,true}
+    sample_rate: ${oc.env:EVENT_SAMPLE_RATE,1.0}  # 1.0 = 100% sampling
+    persist_to_db: ${oc.env:EVENT_PERSIST_DB,true}
+    persist_to_mlflow: ${oc.env:EVENT_PERSIST_MLFLOW,false}
+    batch_size: ${oc.env:EVENT_BATCH_SIZE,50}
+    async_persist: ${oc.env:EVENT_ASYNC_PERSIST,true}
+    include_task_details: ${oc.env:EVENT_INCLUDE_DETAILS,true}
+    include_timing: ${oc.env:EVENT_INCLUDE_TIMING,true}
+    max_goal_length: ${oc.env:EVENT_MAX_GOAL_LENGTH,200}
+
+# Logging configuration (loguru)
+logging:
+  level: ${oc.env:LOG_LEVEL,INFO}
+  log_dir: ${oc.env:LOG_DIR,null}  # null = console only, set to enable file logging
+  console_format: ${oc.env:LOG_CONSOLE_FORMAT,default}  # default, minimal, detailed
+  file_format: ${oc.env:LOG_FILE_FORMAT,detailed}  # default, detailed, json
+  colorize: ${oc.env:LOG_COLORIZE,true}
+  serialize: ${oc.env:LOG_SERIALIZE,false}  # JSON serialization
+  rotation: ${oc.env:LOG_ROTATION,100 MB}  # Size-based rotation
+  retention: ${oc.env:LOG_RETENTION,30 days}  # Keep logs for 30 days
+  compression: ${oc.env:LOG_COMPRESSION,zip}  # Compress rotated logs
+  intercept_standard_logging: ${oc.env:LOG_INTERCEPT_STDLIB,true}  # Capture third-party logs
+  backtrace: ${oc.env:LOG_BACKTRACE,true}  # Full traceback on errors
+  diagnose: ${oc.env:LOG_DIAGNOSE,false}  # Show variable values (disable in prod)
+  enqueue: ${oc.env:LOG_ENQUEUE,true}  # Thread-safe logging

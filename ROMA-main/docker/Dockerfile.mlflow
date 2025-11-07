@@ -1,0 +1,13 @@
+FROM ghcr.io/mlflow/mlflow:latest
+
+# Install dependencies for PostgreSQL and S3/MinIO support
+RUN pip install psycopg2-binary boto3
+
+# Create mlflow directories with proper permissions
+RUN mkdir -p /mlflow /mlflow/artifacts && \
+    chmod -R 777 /mlflow
+
+# Set working directory
+WORKDIR /mlflow
+
+# Keep the default entrypoint and command

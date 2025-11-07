@@ -1,0 +1,94 @@
+# Common MCP Servers Example
+# Demonstrates popular MCP servers: GitHub, Filesystem, SQLite
+
+# Key Concept: Use standard MCP servers for common tasks
+# Each server provides different capabilities
+
+# Installation:
+#   npm install -g @modelcontextprotocol/server-github
+#   npm install -g @modelcontextprotocol/server-filesystem
+#   npm install -g @modelcontextprotocol/server-sqlite
+
+# Setup:
+#   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token
+
+agents:
+  executor:
+    llm:
+      model: openai/gpt-4o-mini
+      temperature: 0.3
+      max_tokens: 4000
+    prediction_strategy: react
+    toolkits:
+      # GitHub - Repository management
+      - class_name: MCPToolkit
+        enabled: true
+        toolkit_config:
+          server_name: github
+          server_type: stdio
+          command: npx
+          args:
+            - "-y"
+            - "@modelcontextprotocol/server-github"
+          env:
+            GITHUB_PERSONAL_ACCESS_TOKEN: "${oc.env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+          use_storage: false
+
+      # Filesystem - Safe file operations
+      # Change the path to your allowed directory!
+      - class_name: MCPToolkit
+        enabled: true
+        toolkit_config:
+          server_name: filesystem
+          server_type: stdio
+          command: npx
+          args:
+            - "-y"
+            - "@modelcontextprotocol/server-filesystem"
+            - "/Users/yourname/Documents"  # <<< CHANGE THIS
+          use_storage: false
+
+      # SQLite - Database queries
+      # Change the path to your database!
+      # - class_name: MCPToolkit
+      #   enabled: true
+      #   toolkit_config:
+      #     server_name: sqlite
+      #     server_type: stdio
+      #     command: npx
+      #     args:
+      #       - "-y"
+      #       - "@modelcontextprotocol/server-sqlite"
+      #       - "/path/to/your/database.db"  # <<< CHANGE THIS
+      #     use_storage: true
+      #     storage_threshold_kb: 100
+
+runtime:
+  max_depth: 4
+  timeout: 300
+  enable_logging: true
+
+# Available MCP Servers:
+#
+# GitHub: Create issues, PRs, search repos, manage files
+# Filesystem: Read/write files in allowed directories
+# SQLite: Query databases, get schema, analyze data
+# Slack: Send messages, read channels (requires workspace setup)
+# Google Drive: Access files (requires OAuth setup)
+# Git: Repository operations (requires repo path)
+
+# Usage Examples:
+#   # GitHub
+#   uv run python -m roma_dspy.cli solve "List my recent GitHub issues" --config config/examples/mcp/common_servers.yaml
+#
+#   # Filesystem (after changing path)
+#   uv run python -m roma_dspy.cli solve "List all PDF files in my documents" --config config/examples/mcp/common_servers.yaml
+#
+#   # SQLite (after enabling and setting path)
+#   uv run python -m roma_dspy.cli solve "Query the database for top 10 customers" --config config/examples/mcp/common_servers.yaml
+
+# Notes:
+# - Uncomment/comment servers as needed
+# - Always change file paths to your actual directories
+# - Each server requires npm package installed globally
+# - Filesystem and SQLite need proper paths configured

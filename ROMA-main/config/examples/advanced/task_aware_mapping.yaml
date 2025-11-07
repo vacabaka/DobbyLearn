@@ -1,0 +1,121 @@
+# Task-Aware Agent Mapping Example
+# Demonstrates task-specific executor configuration
+
+# Key Concept: Different executor configs for different task types
+# - RETRIEVE: Fast model with web search
+# - CODE_INTERPRET: Powerful model with code execution
+# - THINK: Reasoning-focused configuration
+# - WRITE: Creative writing configuration
+
+agents:
+  # Default agents
+  atomizer:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 8000
+
+  planner:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 32000
+
+  aggregator:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 32000
+
+  verifier:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 16000
+
+  # Default executor (fallback)
+  executor:
+    llm:
+      model: openrouter/anthropic/claude-sonnet-4.5
+      temperature: 0.2
+      max_tokens: 32000
+    prediction_strategy: react
+    toolkits:
+      - class_name: FileToolkit
+        enabled: true
+
+# Task-specific executor configurations
+agent_mapping:
+  executors:
+    # RETRIEVE: Fast retrieval with web search
+    RETRIEVE:
+      llm:
+        model: openrouter/google/gemini-2.5-flash
+        temperature: 0.0
+        max_tokens: 16000
+      prediction_strategy: react
+      agent_config:
+        max_executions: 6
+      toolkits:
+        - class_name: MCPToolkit
+          enabled: true
+          toolkit_config:
+            server_name: exa
+            server_type: http
+            url: https://mcp.exa.ai/mcp
+            headers:
+              Authorization: Bearer ${oc.env:EXA_API_KEY}
+            use_storage: false
+
+    # CODE_INTERPRET: Powerful model with code execution
+    CODE_INTERPRET:
+      llm:
+        model: openrouter/anthropic/claude-sonnet-4.5
+        temperature: 0.1
+        max_tokens: 32000
+      prediction_strategy: react
+      agent_config:
+        max_executions: 15
+      toolkits:
+        - class_name: E2BToolkit
+          enabled: true
+        - class_name: FileToolkit
+          enabled: true
+        - class_name: CalculatorToolkit
+          enabled: true
+
+    # THINK: Deep reasoning
+    THINK:
+      llm:
+        model: openrouter/anthropic/claude-sonnet-4.5
+        temperature: 0.2
+        max_tokens: 32000
+      prediction_strategy: react
+      agent_config:
+        max_executions: 12
+
+    # WRITE: Creative content generation
+    WRITE:
+      llm:
+        model: openrouter/anthropic/claude-sonnet-4.5
+        temperature: 0.3
+        max_tokens: 32000
+      prediction_strategy: react
+      agent_config:
+        max_executions: 8
+      toolkits:
+        - class_name: FileToolkit
+          enabled: true
+
+runtime:
+  max_depth: 6
+  enable_logging: true
+
+# Task-Aware Mapping Benefits:
+# - Optimize cost (fast models for simple tasks)
+# - Optimize quality (powerful models for complex tasks)
+# - Right tools for right tasks
+# - Better performance overall
+
+# Usage:
+#   uv run python -m roma_dspy.cli solve "Search for Python best practices and write a report" --config config/examples/advanced/task_aware_mapping.yaml

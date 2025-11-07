@@ -13,18 +13,52 @@ from telegram.ext import (
 from database import DatabaseManager
 from ai_service import DobbyAIService
 
+# Initialize logging first
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 logger = logging.getLogger(__name__)
 
+# ROMA AI Service (улучшенный)
+try:
+    from roma_ai_service import RomaAIService
+    ROMA_AVAILABLE = True
+except ImportError as e:
+    logger.warning(f"⚠️ ROMA AI Service not available: {e}")
+    ROMA_AVAILABLE = False
+    RomaAIService = None
+
 class DobbyLearnBot:
-    def __init__(self, bot_token: str, fireworks_api_key: str, webapp_url: str):
+    def __init__(
+        self,
+        bot_token: str,
+        fireworks_api_key: str,
+        webapp_url: str,
+        use_roma: bool = True,
+        openrouter_api_key: str = None,
+        openai_api_key: str = None
+    ):
         self.bot_token = bot_token
         self.webapp_url = webapp_url
         self.db = DatabaseManager()
-        self.ai_service = DobbyAIService(fireworks_api_key)
+        
+        # Выбор AI сервиса: ROMA (улучшенный) или классический
+        if use_roma and ROMA_AVAILABLE:
+            logger.info("Using ROMA AI Service (Enhanced)")
+            self.ai_service = RomaAIService(
+                fireworks_api_key,
+                openrouter_api_key=openrouter_api_key,
+                openai_api_key=openai_api_key
+            )
+            self.using_roma = True
+        else:
+            if use_roma and not ROMA_AVAILABLE:
+                logger.warning("⚠️ ROMA requested but not available, using classic service")
+            logger.info("📝 Using Classic AI Service")
+            self.ai_service = DobbyAIService(fireworks_api_key)
+            self.using_roma = False
+        
         self.application = None
         
         # Состояния пользователей
@@ -332,26 +366,95 @@ Select the **language you're learning** in this group:
             lang_code = query.data.replace("set_native_lang_", "")
             
             db_user = await self.db.get_or_create_user(user_id)
+            
+            # Проверим, первая ли это настройка
+            setup_complete, _ = await self.db.get_user_language_setup_status(user_id)
+            is_first_setup = not setup_complete
+            
             await self.db.update_user_language_setup(db_user.id, lang_code)
             
             # Обновить язык во всех существующих группах пользователя
             await self.db.update_all_user_groups_language(db_user.id, lang_code)
             
+            # Если это первая настройка, показываем выбор языка изучения
+            if is_first_setup:
+                # Сохраняем native_language в состоянии для создания дефолтной группы
+                self.user_creating_group[user_id] = "My Words"  # Название дефолтной группы
+                
+                text = f"""
+✅ Base language set: **{self.LANGUAGES[lang_code]}**
+
+Now select the **language you want to learn**:
+"""
+                
+                keyboard = []
+                for target_code, lang_name in self.LANGUAGES.items():
+                    if target_code != lang_code:  # Не показывать базовый язык
+                        keyboard.append([
+                            InlineKeyboardButton(
+                                lang_name,
+                                callback_data=f"set_first_target_lang_{target_code}"
+                            )
+                        ])
+                
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                await query.edit_message_text(text, parse_mode='Markdown', reply_markup=reply_markup)
+            else:
+                # Если не первая настройка, показываем обычное меню
+                keyboard = [
+                    [InlineKeyboardButton("➕ Create Group", callback_data="create_group")],
+                    [InlineKeyboardButton("🎓 Open DobbyLearn", 
+                                        web_app=WebAppInfo(url=self.webapp_url))],
+                    [InlineKeyboardButton("◀️ Back to Menu", callback_data="back_to_main")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                await query.edit_message_text(
+                    f"✅ Base language set: **{self.LANGUAGES[lang_code]}**\n\n"
+                    f"All your groups updated to translate to {self.LANGUAGES[lang_code]}!\n\n"
+                    f"Now you can create groups and add words!",
+                    parse_mode='Markdown',
+                    reply_markup=reply_markup
+                )
+        
+        # Установка языка изучения для первой настройки (создание дефолтной группы)
+        elif query.data.startswith("set_first_target_lang_"):
+            target_lang = query.data.replace("set_first_target_lang_", "")
+            
+            db_user = await self.db.get_or_create_user(user_id)
+            _, native_lang = await self.db.get_user_language_setup_status(user_id)
+            
+            # Создать дефолтную группу с выбранным языком изучения
+            await self.db.create_default_group(
+                user_id=db_user.id,
+                native_language=native_lang,
+                target_language=target_lang
+            )
+            
+            lang_tag = await self.db.get_language_tag(native_lang, target_lang)
+            
             keyboard = [
-                [InlineKeyboardButton("➕ Create Group", callback_data="create_group")],
                 [InlineKeyboardButton("🎓 Open DobbyLearn", 
                                     web_app=WebAppInfo(url=self.webapp_url))],
+                [InlineKeyboardButton("➕ Create Group", callback_data="create_group"),
+                 InlineKeyboardButton("📚 My Groups", callback_data="show_groups")],
                 [InlineKeyboardButton("◀️ Back to Menu", callback_data="back_to_main")]
             ]
             reply_markup = InlineKeyboardMarkup(keyboard)
             
             await query.edit_message_text(
-                f"✅ Base language set: **{self.LANGUAGES[lang_code]}**\n\n"
-                f"All your groups updated to translate to {self.LANGUAGES[lang_code]}!\n\n"
-                f"Now you can create groups and add words!",
+                f"✅ Setup complete!\n\n"
+                f"Learning: **{self.LANGUAGES[target_lang]}**\n"
+                f"Translations: **{self.LANGUAGES[native_lang]}**\n\n"
+                f"Default group {lang_tag} created!\n\n"
+                f"Now send words and AI will handle the rest! 🤖",
                 parse_mode='Markdown',
                 reply_markup=reply_markup
             )
+            
+            # Очистить состояние
+            if user_id in self.user_creating_group:
+                del self.user_creating_group[user_id]
         
         # Установка языка изучения для группы
         elif query.data.startswith("set_target_lang_"):
@@ -622,21 +725,34 @@ def main():
     
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     fireworks_api_key = os.getenv("FIREWORKS_API_KEY", "")
-    webapp_url = os.getenv("WEBAPP_URL", "https://yourdomain.com")
+    webapp_url = os.getenv("WEBAPP_URL")
+    
+    # ROMA настройки 
+    use_roma = os.getenv("USE_ROMA_AI", "true").lower() == "true"
+    openrouter_api_key = os.getenv("OPENROUTER_API_KEY", None)
+    openai_api_key = os.getenv("OPENAI_API_KEY", None)
     
     if not bot_token:
         raise ValueError("TELEGRAM_BOT_TOKEN не найден в .env")
     
-    logger.info("DobbyLearn Bot with AI starting...")
+    service_type = "ROMA (Enhanced)" if use_roma and ROMA_AVAILABLE else "Classic"
+    logger.info(f"DobbyLearn Bot starting with {service_type} AI service...")
     
     # Создать event loop и запустить инициализацию
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     
-    bot = DobbyLearnBot(bot_token, fireworks_api_key, webapp_url)
+    bot = DobbyLearnBot(
+        bot_token,
+        fireworks_api_key,
+        webapp_url,
+        use_roma=use_roma,
+        openrouter_api_key=openrouter_api_key,
+        openai_api_key=openai_api_key
+    )
     loop.run_until_complete(bot.initialize())
     
-    logger.info("✅ Bot initialized, starting polling...")
+    logger.info(f"✅ Bot initialized with {service_type} AI, starting polling...")
     
     # Запустить polling 
     bot.application.run_polling()

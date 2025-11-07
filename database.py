@@ -70,8 +70,7 @@ class DatabaseManager:
             await session.commit()
             await session.refresh(user)
             
-            # Создать группу по умолчанию
-            await self.create_default_group(user.id)
+            # Дефолтная группа теперь создается после выбора языков в боте
             
             logger.info(f"Создан пользователь: {telegram_id}")
             return user
@@ -86,7 +85,7 @@ class DatabaseManager:
 
     # УПРАВЛЕНИЕ ГРУППАМИ
     
-    async def create_default_group(self, user_id: int):
+    async def create_default_group(self, user_id: int, native_language: str = "ru", target_language: str = "en"):
         """Создать группу по умолчанию"""
         async with self.get_session() as session:
             default_group = WordGroup(
@@ -94,7 +93,9 @@ class DatabaseManager:
                 name="Мои слова",
                 description="Основная группа слов",
                 icon="📚",
-                color="#667eea"
+                color="#667eea",
+                native_language=native_language,
+                target_language=target_language
             )
             session.add(default_group)
             await session.commit()

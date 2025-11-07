@@ -1,0 +1,74 @@
+# Crypto Agent Example
+# Demonstrates a real-world crypto analysis agent with multiple data sources
+
+# Key Concept: Specialized agent combining MCP + native toolkits
+
+agents:
+  executor:
+    llm:
+      model: openai/gpt-4o
+      temperature: 0.3
+      max_tokens: 8000
+    prediction_strategy: react
+    toolkits:
+      # CoinGecko MCP (public, no API key)
+      - class_name: MCPToolkit
+        enabled: true
+        include_tools:
+          - get_simple_price
+          - get_coins_markets
+          - get_search_trending
+          - get_coins_top_gainers_losers
+        toolkit_config:
+          server_name: coingecko_mcp
+          server_type: http
+          url: "https://mcp.api.coingecko.com/sse"
+          use_storage: true
+          storage_threshold_kb: 10
+
+      # Binance Toolkit (native)
+      - class_name: BinanceToolkit
+        enabled: true
+        include_tools:
+          - get_current_price
+          - get_ticker_stats
+          - get_klines
+        toolkit_config:
+          enable_analysis: true
+          default_market: spot
+
+      # DefiLlama Toolkit (DeFi protocols)
+      - class_name: DefiLlamaToolkit
+        enabled: true
+        include_tools:
+          - get_protocols
+          - get_protocol_tvl
+        toolkit_config:
+          enable_analysis: true
+
+      # E2B for data analysis
+      - class_name: E2BToolkit
+        enabled: true
+        toolkit_config:
+          timeout: 600
+
+      # File operations
+      - class_name: FileToolkit
+        enabled: true
+
+runtime:
+  max_depth: 6
+  timeout: 600
+  enable_logging: true
+
+# Crypto Agent Capabilities:
+# - Real-time price data (CoinGecko + Binance)
+# - Market trends and gainers/losers
+# - DeFi protocol TVL analysis
+# - Code execution for data processing
+# - File export for reports
+
+# Usage Examples:
+#   uv run python -m roma_dspy.cli solve "Analyze Bitcoin price across exchanges" --config config/examples/crypto/crypto_agent.yaml
+#   uv run python -m roma_dspy.cli solve "Find top 10 DeFi protocols by TVL and create a report" --config config/examples/crypto/crypto_agent.yaml
+#   uv run python -m roma_dspy.cli solve "What are today's top gainers in crypto?" --config config/examples/crypto/crypto_agent.yaml

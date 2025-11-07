@@ -1,0 +1,38 @@
+# MCP Stdio Local Server Example
+# Demonstrates using a local MCP server launched as subprocess
+
+# Key Concept: Stdio servers run locally via npx/python command
+# Installation: npm install -g @modelcontextprotocol/server-filesystem
+
+agents:
+  executor:
+    llm:
+      model: openai/gpt-4o-mini
+      temperature: 0.3
+    prediction_strategy: react
+    toolkits:
+      - class_name: MCPToolkit
+        enabled: true
+        toolkit_config:
+          server_name: filesystem
+          server_type: stdio
+          command: npx
+          args:
+            - "-y"
+            - "@modelcontextprotocol/server-filesystem"
+            - "/Users/yourname/allowed_directory"  # Change this!
+          use_storage: false  # File operations are small
+
+runtime:
+  max_depth: 4
+  enable_logging: true
+
+# MCP Stdio Features:
+# - Local execution (secure)
+# - Process isolation
+# - Access control to specific directories
+# - No network required
+
+# Usage:
+#   # First, edit the allowed_directory path above
+#   uv run python -m roma_dspy.cli solve "List all Python files in my directory" --config config/examples/mcp/stdio_local_server.yaml

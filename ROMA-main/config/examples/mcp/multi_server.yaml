@@ -1,0 +1,59 @@
+# MCP Multi-Server Example
+# Demonstrates combining multiple MCP servers (HTTP + stdio)
+
+# Key Concept: Use multiple MCP servers in one agent
+# Each server provides different capabilities
+
+# Requirements:
+#   npm install -g @modelcontextprotocol/server-github
+#   export GITHUB_PERSONAL_ACCESS_TOKEN=your_token
+
+agents:
+  executor:
+    llm:
+      model: openai/gpt-4o
+      temperature: 0.4
+      max_tokens: 8000
+    prediction_strategy: react
+    toolkits:
+      # HTTP Server: CoinGecko (crypto data)
+      - class_name: MCPToolkit
+        enabled: true
+        toolkit_config:
+          server_name: coingecko
+          server_type: http
+          url: "https://mcp.api.coingecko.com/sse"
+          use_storage: true
+          storage_threshold_kb: 100
+
+      # Stdio Server: GitHub (repository management)
+      - class_name: MCPToolkit
+        enabled: true
+        toolkit_config:
+          server_name: github
+          server_type: stdio
+          command: npx
+          args:
+            - "-y"
+            - "@modelcontextprotocol/server-github"
+          env:
+            GITHUB_PERSONAL_ACCESS_TOKEN: "${oc.env:GITHUB_PERSONAL_ACCESS_TOKEN}"
+          use_storage: false
+
+      # Local toolkit for file operations
+      - class_name: FileToolkit
+        enabled: true
+
+runtime:
+  max_depth: 5
+  timeout: 300
+  enable_logging: true
+
+# Multi-Server Pattern:
+# - CoinGecko for market data
+# - GitHub for repository operations
+# - FileToolkit for local files
+# All work together in one agent!
+
+# Usage:
+#   uv run python -m roma_dspy.cli solve "Get Bitcoin price, save to file, create GitHub issue with the data" --config config/examples/mcp/multi_server.yaml

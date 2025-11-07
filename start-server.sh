@@ -1,5 +1,5 @@
 #!/bin/bash
-# Быстрый старт DobbyLearn на сервере
+# старт
 
 set -e
 

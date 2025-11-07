@@ -1,0 +1,72 @@
+# Custom Prompts and Demos Example
+# Demonstrates loading custom signature instructions and few-shot demos
+
+# Key Concept: Enhance agent performance with optimized prompts
+
+agents:
+  atomizer:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 8000
+    # Load custom instruction prompt
+    signature_instructions: "prompt_optimization.seed_prompts.atomizer_seed:ATOMIZER_PROMPT"
+    # Load few-shot demonstrations
+    demos: "prompt_optimization.seed_prompts.atomizer_seed:ATOMIZER_DEMOS"
+
+  planner:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 32000
+    signature_instructions: "prompt_optimization.seed_prompts.planner_seed:PLANNER_PROMPT"
+    demos: "prompt_optimization.seed_prompts.planner_seed:PLANNER_DEMOS"
+
+  executor:
+    llm:
+      model: openrouter/anthropic/claude-sonnet-4.5
+      temperature: 0.2
+      max_tokens: 32000
+    prediction_strategy: react
+    signature_instructions: "prompt_optimization.seed_prompts.executor_seed:EXECUTOR_PROMPT"
+    demos: "prompt_optimization.seed_prompts.executor_seed:EXECUTOR_DEMOS"
+    toolkits:
+      - class_name: FileToolkit
+        enabled: true
+      - class_name: CalculatorToolkit
+        enabled: true
+
+  aggregator:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 32000
+    signature_instructions: "prompt_optimization.seed_prompts.aggregator_seed:AGGREGATOR_PROMPT"
+    demos: "prompt_optimization.seed_prompts.aggregator_seed:AGGREGATOR_DEMOS"
+
+  verifier:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 16000
+    signature_instructions: "prompt_optimization.seed_prompts.verifier_seed:VERIFIER_PROMPT"
+    demos: "prompt_optimization.seed_prompts.verifier_seed:VERIFIER_DEMOS"
+
+runtime:
+  max_depth: 6
+  enable_logging: true
+
+# Custom Prompts Benefits:
+# - Better task classification (atomizer)
+# - Smarter task decomposition (planner)
+# - More effective execution (executor)
+# - Better result synthesis (aggregator)
+# - Stronger validation (verifier)
+
+# Prompt Format:
+# - signature_instructions: "module.path:VARIABLE_NAME"
+# - demos: "module.path:DEMOS_LIST"
+# - See prompt_optimization/seed_prompts/ for examples
+
+# Usage:
+#   uv run python -m roma_dspy.cli solve "Complex multi-step task" --config config/examples/advanced/custom_prompts.yaml

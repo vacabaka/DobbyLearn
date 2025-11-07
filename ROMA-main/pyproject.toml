@@ -1,0 +1,83 @@
+[project]
+name = "roma-dspy"
+version = "0.1.0"
+description = "Recursive agentic problem solver"
+readme = "README.md"
+authors = [
+    { name = "salzubi401", email = "salaheddin@sentient.xyz" },
+    { name = "baran nama", email = "baran@sentient.xyz" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "dspy>=3.0.3",
+    "ipykernel>=6.30.1",
+    "pydantic>=2.11.9",
+    "pytest>=8.4.2",
+    "networkx>=3.0",
+    "matplotlib>=3.6.0",
+    "ipdb>=0.13.13",
+    "pydantic-settings>=2.11.0",
+    "omegaconf>=2.3.0",
+    "pandas>=2.0.0",
+    "pyarrow>=14.0.0",
+    "loguru>=0.7.3",
+    "mlflow==3.5.0rc0",
+    "sqlalchemy>=2.0.35",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    "psycopg2-binary>=2.9.9",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0.0",
+    "greenlet>=3.2.4",
+    "httpx>=0.26.0",
+    "textual>=0.60.0",
+    "datasets>=4.2.0",
+    "dockerfile-parse>=2.0.1",
+    "e2b>=2.2.0",
+    "e2b-code-interpreter>=2.0.0",
+    "httptools>=0.6.4",
+    "uvloop>=0.21.0",
+    "vulture>=2.14",
+    "watchfiles>=1.1.0",
+    "websockets>=15.0.1",
+    "boto3>=1.40.55",
+    "fastmcp>=2.12.4",
+    "jinja2>=3.1.0",
+    "jsonschema>=4.20.0",
+    "pyperclip>=1.8.2",
+    "python-magic>=0.4.27",
+]
+
+[project.optional-dependencies]
+e2b = [
+    "e2b-code-interpreter>=1.0.0",
+]
+api = [
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "httpx>=0.26.0",
+    "python-multipart>=0.0.6",
+]
+mcp = [
+    "httpx-sse>=0.4.0",
+    "mcp>=1.0.0",
+]
+wandb = [
+    "wandb>=0.15.0",
+]
+
+[project.scripts]
+roma-dspy = "roma_dspy.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.2",
+    "pytest-asyncio>=1.2.0",
+    "pytest-mock>=3.15.1",
+    "pytest-loguru>=0.4.0",
+]

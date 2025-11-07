@@ -1,0 +1,645 @@
+# Crypto Agent Profile with Task-Aware Agent Mapping
+# Optimized executor configurations for different task types:
+# - RETRIEVE: Fast data fetching (Gemini Flash)
+# - CODE_INTERPRET: Complex analysis (Claude Sonnet 4.5 + E2B)
+# - THINK: Deep reasoning (Claude Sonnet 4.5)
+# - WRITE: Professional reports (Claude Sonnet 4.5)
+
+# Default agent configurations (used for Atomizer, Planner, Aggregator, Verifier)
+agents:
+  # Atomizer: Fast decision-making with Gemini Flash
+  atomizer:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 1000
+    # Load atomizer seed prompt and demos for improved task classification
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.atomizer_seed:ATOMIZER_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.atomizer_seed:ATOMIZER_DEMOS"
+
+  # Planner: Strategic planning with Gemini Flash
+  planner:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.1
+      max_tokens: 4000
+    # Load planner seed prompt and demos for improved task decomposition
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.planner_seed:PLANNER_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.planner_seed:PLANNER_DEMOS"
+    agent_config:
+      max_subtasks: 12
+
+  # Default Executor (fallback for unmapped task types)
+  executor:
+    llm:
+      model: openrouter/anthropic/claude-sonnet-4.5
+      temperature: 0.2
+      max_tokens: 16000
+      extra_body:
+          plugins:
+            - id: web
+              engine: exa  # Use Exa search engine
+              max_results: 5  # Include 3 search results
+      # Defaults: adapter_type=json, use_native_function_calling=true
+    prediction_strategy: react
+    # Load executor seed prompt and demos for improved task execution
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.executor_seed:EXECUTOR_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.executor_seed:EXECUTOR_DEMOS"
+    agent_config:
+      max_executions: 10
+
+    # Default toolkits (all available)
+    # NOTE: Configs are homogenized across all task types for maximum cache reuse
+    toolkits:
+      - class_name: E2BToolkit
+        enabled: true
+        toolkit_config:
+          timeout: 600
+          max_lifetime_hours: 23.5
+          auto_reinitialize: true
+
+      - class_name: WebSearchToolkit
+        enabled: true
+        toolkit_config:
+          model: openrouter/openai/gpt-5-mini
+          # No search_engine = OpenRouter native search
+          max_results: 5
+          search_context_size: medium
+          temperature: 1.0  # Required for GPT-5 reasoning models
+          max_tokens: 16000  # Required for GPT-5 reasoning models
+
+      - class_name: ArkhamToolkit
+        enabled: true
+        # HOMOGENIZED: Same comprehensive tool set as all task types
+        include_tools:
+          - get_top_tokens
+          - get_supported_chains
+        toolkit_config:
+          enable_analysis: true  # Standard: always enabled
+
+      - class_name: DefiLlamaToolkit
+        enabled: true
+        # HOMOGENIZED: Complete DefiLlama tool set (14 tools)
+        include_tools:
+          - get_protocols
+          - get_protocol_tvl
+          - get_chains
+          - get_protocol_detail
+          - get_chain_historical_tvl
+          - get_protocol_fees
+          - get_chain_fees              # Chain-wide fee metrics
+          - get_yield_pools             # DeFi yield opportunities
+          - get_yield_chart             # Historical yield trends
+          - get_yield_pools_borrow      # Lending/borrowing rates
+          - get_yield_perps             # Perpetual futures yields
+          - get_active_users            # Protocol adoption metrics
+          - get_chain_assets            # Chain asset inventory
+          - get_historical_liquidity    # Liquidity trends
+        toolkit_config:
+          enable_analysis: true  # Standard: always enabled
+          enable_pro_features: true
+
+      - class_name: MCPToolkit
+        enabled: true
+        # CoinGecko Public MCP Server - Core crypto data tools
+        # Using StreamableHTTP transport (more reliable than SSE, prevents 60s timeouts)
+        include_tools:
+          - get_simple_price                    # ✅ Price for multiple coins
+          - get_id_coins                        # ✅ Detailed coin info by ID
+          - get_coins_markets                   # ✅ Market data for multiple coins
+          - get_global                          # ✅ Global crypto market stats
+          - get_id_simple_token_price          # ✅ Token price by contract address
+          - get_coins_contract                  # ✅ Coin data by contract
+          - get_search                          # ✅ Search coins/exchanges/categories
+          - get_range_coins_market_chart       # ✅ Historical price charts
+          - get_range_coins_ohlc               # ✅ OHLC candlestick data
+          - get_search_trending                 # ✅ Trending search coins
+          - get_coins_top_gainers_losers       # ✅ Top movers in 24h
+        toolkit_config:
+          server_name: coingecko_mcp
+          server_type: http
+          url: "https://mcp.api.coingecko.com/mcp"
+          transport_type: streamable  # Explicit: prevents SSE timeout issues
+          use_storage: true
+          storage_threshold_kb: 10  # Store results > 10KB to Parquet
+
+      - class_name: BinanceToolkit
+        enabled: true
+        # HOMOGENIZED: Same comprehensive tool set as all task types
+        include_tools:
+          - get_current_price
+          - get_ticker_stats
+          - get_book_ticker
+          - get_klines
+          - get_order_book
+          - get_recent_trades
+        toolkit_config:
+          enable_analysis: true  # Standard: always enabled
+          default_market: spot
+
+      - class_name: CoinglassToolkit
+        enabled: true
+        # Derivatives market data - funding rates, open interest, liquidations
+        include_tools:
+          - get_funding_rates_weighted_by_oi
+          - get_funding_rates_per_exchange
+          - get_arbitrage_opportunities
+          - get_open_interest_by_exchange
+          - get_open_interest_history
+          - get_taker_buy_sell_volume
+          - get_liquidations_by_exchange
+        toolkit_config:
+          symbols: ["BTC", "ETH", "SOL"]  # Focus on major assets
+          default_symbol: BTC
+          storage_threshold_kb: 10  # HOMOGENIZED: aggressive storage
+
+      - class_name: FileToolkit
+        enabled: true
+        toolkit_config:
+          enable_delete: false
+          max_file_size: 10485760  # Standard: 10MB
+
+  # Aggregator: Synthesis with Gemini Flash
+  aggregator:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 5000
+    # Load aggregator seed prompt for improved result synthesis
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.aggregator_seed:AGGREGATOR_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.aggregator_seed:AGGREGATOR_DEMOS"
+
+  # Verifier: Validation with Gemini Flash
+  verifier:
+    llm:
+      model: openrouter/google/gemini-2.5-flash
+      temperature: 0.0
+      max_tokens: 3000
+    # Load verifier seed prompt and demos for improved output validation
+    signature_instructions: "prompt_optimization.prompts.seed_prompts.verifier_seed:VERIFIER_PROMPT"
+    demos: "prompt_optimization.prompts.seed_prompts.verifier_seed:VERIFIER_DEMOS"
+
+# Task-aware agent mapping for executor
+agent_mapping:
+  executors:
+    # RETRIEVE: Fast data fetching with minimal reasoning
+    # Use cases: "price of bitcoin", "get market cap", "fetch token holders"
+    RETRIEVE:
+      llm:
+        model: openrouter/google/gemini-2.5-flash  # Fast & cheap for simple queries
+        temperature: 0.0  # Deterministic data retrieval
+        max_tokens: 4000  # Sufficient for data responses
+        # OpenRouter web search for real-time crypto data and news
+        extra_body:
+          plugins:
+            - id: web
+              engine: exa  # Use Exa search engine
+              max_results: 3  # Include 3 search results
+      prediction_strategy: react
+      # Load RETRIEVE-specific seed prompt and demos
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.executor_retrieve_seed:EXECUTOR_RETRIEVE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.executor_retrieve_seed:EXECUTOR_RETRIEVE_DEMOS"
+      agent_config:
+        max_executions: 6  # Fewer iterations for simple retrievals
+
+      # Data retrieval toolkits - HOMOGENIZED configs for cache reuse
+      toolkits:
+        - class_name: MCPToolkit
+          enabled: true
+          # CoinGecko Public MCP Server - HOMOGENIZED tool set
+          # Using StreamableHTTP transport (more reliable than SSE, prevents 60s timeouts)
+          include_tools:
+            - get_simple_price                    # ✅ Verified available
+            - get_id_coins                        # ✅ Verified available
+            - get_coins_markets                   # ✅ Verified available
+            - get_global                          # ✅ Verified available
+            - get_id_simple_token_price          # ✅ Verified available
+            - get_coins_contract                  # ✅ Verified available
+            - get_search                          # ✅ Verified available
+            - get_range_coins_market_chart       # ✅ Verified available
+            - get_range_coins_ohlc               # ✅ Verified available
+            - get_search_trending                 # ✅ Verified available
+            - get_coins_top_gainers_losers       # ✅ Verified available
+          toolkit_config:
+            server_name: coingecko_mcp
+            server_type: http
+            url: "https://mcp.api.coingecko.com/mcp"
+            transport_type: streamable  # Explicit: prevents SSE timeout issues
+            use_storage: true
+            storage_threshold_kb: 10  # HOMOGENIZED: aggressive storage
+
+        - class_name: BinanceToolkit
+          enabled: true
+          # HOMOGENIZED: Comprehensive standard tool set
+          include_tools:
+            - get_current_price
+            - get_ticker_stats
+            - get_book_ticker
+            - get_klines
+            - get_order_book
+            - get_recent_trades
+          toolkit_config:
+            enable_analysis: true  # HOMOGENIZED: always enabled
+            default_market: spot
+            storage_threshold_kb: 10  # Reduced threshold for faster storage
+
+        - class_name: DefiLlamaToolkit
+          enabled: true
+          # HOMOGENIZED: Complete DefiLlama tool set (14 tools)
+          include_tools:
+            - get_protocols
+            - get_protocol_tvl
+            - get_chains
+            - get_protocol_detail
+            - get_chain_historical_tvl
+            - get_protocol_fees
+            - get_chain_fees              # Chain-wide fee metrics
+            - get_yield_pools             # DeFi yield opportunities
+            - get_yield_chart             # Historical yield trends
+            - get_yield_pools_borrow      # Lending/borrowing rates
+            - get_yield_perps             # Perpetual futures yields
+            - get_active_users            # Protocol adoption metrics
+            - get_chain_assets            # Chain asset inventory
+            - get_historical_liquidity    # Liquidity trends
+          toolkit_config:
+            enable_analysis: true  # HOMOGENIZED: always enabled
+            enable_pro_features: true
+            storage_threshold_kb: 10  # Reduced threshold for faster storage
+
+        - class_name: ArkhamToolkit
+          enabled: true
+          # HOMOGENIZED: Comprehensive on-chain analysis tool set
+          include_tools:
+            - get_top_tokens
+            - get_supported_chains
+            - get_token_holders        # Whale tracking & concentration
+            - get_token_top_flow       # Inflow/outflow analysis
+            - get_transfers            # Transaction tracking
+            - get_token_balances       # Wallet portfolio analysis
+          toolkit_config:
+            enable_analysis: true  # HOMOGENIZED: always enabled
+            storage_threshold_kb: 10  # Reduced threshold for faster storage
+
+        - class_name: CoinglassToolkit
+          enabled: true
+          # HOMOGENIZED: Derivatives market data tool set
+          include_tools:
+            - get_funding_rates_weighted_by_oi
+            - get_funding_rates_per_exchange
+            - get_arbitrage_opportunities
+            - get_open_interest_by_exchange
+            - get_open_interest_history
+            - get_taker_buy_sell_volume
+            - get_liquidations_by_exchange
+          toolkit_config:
+            symbols: ["BTC", "ETH", "SOL"]
+            default_symbol: BTC
+            storage_threshold_kb: 10  # HOMOGENIZED: aggressive storage
+
+        - class_name: WebSearchToolkit
+          enabled: true
+          toolkit_config:
+            model: openrouter/openai/gpt-5-mini
+            # Native OpenRouter search (no search_engine)
+            max_results: 3
+            search_context_size: low  # Fast for RETRIEVE tasks
+            temperature: 1.0  # Required for GPT-5 reasoning models
+            max_tokens: 16000  # Required for GPT-5 reasoning models
+
+    # CODE_INTERPRET: Complex analysis, backtesting, calculations
+    # Use cases: "backtest strategy", "analyze correlation", "calculate sharpe ratio"
+    CODE_INTERPRET:
+      llm:
+        model: openrouter/anthropic/claude-sonnet-4.5  # Best for code generation
+        temperature: 0.1  # Slightly creative for problem-solving
+        max_tokens: 16000  # Large context for complex code
+      prediction_strategy: react
+      # Load CODE_INTERPRET-specific seed prompt and demos
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.executor_code_seed:EXECUTOR_CODE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.executor_code_seed:EXECUTOR_CODE_DEMOS"
+      agent_config:
+        max_executions: 15  # More iterations for debugging code
+
+      # Code execution + data sources + file I/O - HOMOGENIZED configs
+      toolkits:
+        - class_name: E2BToolkit  # PRIMARY: Code execution
+          enabled: true
+          toolkit_config:
+            timeout: 600  # HOMOGENIZED: standard value
+            max_lifetime_hours: 23.5
+            auto_reinitialize: true
+
+        - class_name: FileToolkit  # Save analysis results
+          enabled: true
+          toolkit_config:
+            enable_delete: false
+            max_file_size: 10485760  # HOMOGENIZED: 10MB standard
+
+        - class_name: MCPToolkit  # Data for analysis
+          enabled: true
+          # CoinGecko Public MCP Server - HOMOGENIZED tool set
+          # Using StreamableHTTP transport (more reliable than SSE, prevents 60s timeouts)
+          include_tools:
+            - get_simple_price                    # ✅ Verified available
+            - get_id_coins                        # ✅ Verified available
+            - get_coins_markets                   # ✅ Verified available
+            - get_global                          # ✅ Verified available
+            - get_id_simple_token_price          # ✅ Verified available
+            - get_coins_contract                  # ✅ Verified available
+            - get_search                          # ✅ Verified available
+            - get_range_coins_market_chart       # ✅ Verified available
+            - get_range_coins_ohlc               # ✅ Verified available
+            - get_search_trending                 # ✅ Verified available
+            - get_coins_top_gainers_losers       # ✅ Verified available
+          toolkit_config:
+            server_name: coingecko_mcp
+            server_type: http
+            url: "https://mcp.api.coingecko.com/mcp"
+            transport_type: streamable  # Explicit: prevents SSE timeout issues
+            use_storage: true
+            storage_threshold_kb: 10  # HOMOGENIZED: aggressive storage
+
+        - class_name: BinanceToolkit  # Trading data
+          enabled: true
+          # HOMOGENIZED: Same comprehensive tool set as RETRIEVE
+          include_tools:
+            - get_current_price
+            - get_ticker_stats
+            - get_book_ticker
+            - get_klines
+            - get_order_book
+            - get_recent_trades
+          toolkit_config:
+            enable_analysis: true  # HOMOGENIZED: always enabled
+            default_market: spot
+            storage_threshold_kb: 10  # Reduced threshold for faster storage
+
+        - class_name: DefiLlamaToolkit  # DeFi metrics
+          enabled: true
+          # HOMOGENIZED: Complete DefiLlama tool set (14 tools)
+          include_tools:
+            - get_protocols
+            - get_protocol_tvl
+            - get_chains
+            - get_protocol_detail
+            - get_chain_historical_tvl
+            - get_protocol_fees
+            - get_chain_fees              # Chain-wide fee metrics
+            - get_yield_pools             # DeFi yield opportunities
+            - get_yield_chart             # Historical yield trends
+            - get_yield_pools_borrow      # Lending/borrowing rates
+            - get_yield_perps             # Perpetual futures yields
+            - get_active_users            # Protocol adoption metrics
+            - get_chain_assets            # Chain asset inventory
+            - get_historical_liquidity    # Liquidity trends
+          toolkit_config:
+            enable_analysis: true  # HOMOGENIZED: always enabled
+            enable_pro_features: true
+            storage_threshold_kb: 10  # Reduced threshold for faster storage
+
+        - class_name: CoinglassToolkit  # Derivatives data
+          enabled: true
+          # HOMOGENIZED: Derivatives market data tool set
+          include_tools:
+            - get_funding_rates_weighted_by_oi
+            - get_funding_rates_per_exchange
+            - get_arbitrage_opportunities
+            - get_open_interest_by_exchange
+            - get_open_interest_history
+            - get_taker_buy_sell_volume
+            - get_liquidations_by_exchange
+          toolkit_config:
+            symbols: ["BTC", "ETH", "SOL"]
+            default_symbol: BTC
+            storage_threshold_kb: 10  # HOMOGENIZED: aggressive storage
+
+    # THINK: Deep market analysis, pattern recognition, insights
+    # Use cases: "analyze market sentiment", "identify trends", "compare tokens"
+    THINK:
+      llm:
+        model: openrouter/anthropic/claude-sonnet-4.5  # Best reasoning
+        temperature: 0.2  # Balanced creativity + accuracy
+        max_tokens: 16000  # Large context for complex reasoning
+        # OpenRouter web search for market sentiment and trend analysis
+        extra_body:
+          plugins:
+            - id: web
+              engine: exa  # Use Exa for comprehensive search
+              max_results: 5  # More results for deeper analysis
+      prediction_strategy: react
+      # Load THINK-specific seed prompt and demos
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.executor_think_seed:EXECUTOR_THINK_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.executor_think_seed:EXECUTOR_THINK_DEMOS"
+      agent_config:
+        max_executions: 12  # Multiple iterations for deep analysis
+
+      # All data sources + web search + code execution - HOMOGENIZED configs
+      toolkits:
+        - class_name: E2BToolkit  # Code execution for complex analysis
+          enabled: true
+          toolkit_config:
+            timeout: 600  # HOMOGENIZED: standard value
+            max_lifetime_hours: 23.5
+            auto_reinitialize: true
+
+        - class_name: WebSearchToolkit  # Market sentiment & news
+          enabled: true
+          toolkit_config:
+            model: openrouter/openai/gpt-5-mini
+            # Native OpenRouter search for market analysis
+            max_results: 5
+            search_context_size: high  # Deep context for THINK tasks
+            temperature: 1.0  # Required for GPT-5 reasoning models
+            max_tokens: 16000  # Required for GPT-5 reasoning models
+
+        - class_name: MCPToolkit  # Market data
+          enabled: true
+          # CoinGecko Public MCP Server - HOMOGENIZED tool set
+          # Using StreamableHTTP transport (more reliable than SSE, prevents 60s timeouts)
+          include_tools:
+            - get_simple_price                    # ✅ Verified available
+            - get_id_coins                        # ✅ Verified available
+            - get_coins_markets                   # ✅ Verified available
+            - get_global                          # ✅ Verified available
+            - get_id_simple_token_price          # ✅ Verified available
+            - get_coins_contract                  # ✅ Verified available
+            - get_search                          # ✅ Verified available
+            - get_range_coins_market_chart       # ✅ Verified available
+            - get_range_coins_ohlc               # ✅ Verified available
+            - get_search_trending                 # ✅ Verified available
+            - get_coins_top_gainers_losers       # ✅ Verified available
+          toolkit_config:
+            server_name: coingecko_mcp
+            server_type: http
+            url: "https://mcp.api.coingecko.com/mcp"
+            transport_type: streamable  # Explicit: prevents SSE timeout issues
+            use_storage: true
+            storage_threshold_kb: 10  # HOMOGENIZED: aggressive storage
+
+        - class_name: BinanceToolkit  # Trading patterns
+          enabled: true
+          # HOMOGENIZED: Same comprehensive tool set as RETRIEVE
+          include_tools:
+            - get_current_price
+            - get_ticker_stats
+            - get_book_ticker
+            - get_klines
+            - get_order_book
+            - get_recent_trades
+          toolkit_config:
+            enable_analysis: true  # HOMOGENIZED: always enabled
+            default_market: spot
+            storage_threshold_kb: 10  # Reduced threshold for faster storage
+
+        - class_name: DefiLlamaToolkit  # DeFi trends
+          enabled: true
+          # HOMOGENIZED: Complete DefiLlama tool set (14 tools)
+          include_tools:
+            - get_protocols
+            - get_protocol_tvl
+            - get_chains
+            - get_protocol_detail
+            - get_chain_historical_tvl
+            - get_protocol_fees
+            - get_chain_fees              # Chain-wide fee metrics
+            - get_yield_pools             # DeFi yield opportunities
+            - get_yield_chart             # Historical yield trends
+            - get_yield_pools_borrow      # Lending/borrowing rates
+            - get_yield_perps             # Perpetual futures yields
+            - get_active_users            # Protocol adoption metrics
+            - get_chain_assets            # Chain asset inventory
+            - get_historical_liquidity    # Liquidity trends
+          toolkit_config:
+            enable_analysis: true  # HOMOGENIZED: always enabled
+            enable_pro_features: true
+            storage_threshold_kb: 10  # Reduced threshold for faster storage
+
+        - class_name: ArkhamToolkit  # On-chain patterns
+          enabled: true
+          # HOMOGENIZED: Comprehensive on-chain analysis tool set
+          include_tools:
+            - get_top_tokens
+            - get_supported_chains
+            - get_token_holders        # Whale tracking & concentration
+            - get_token_top_flow       # Inflow/outflow analysis
+            - get_transfers            # Transaction tracking
+            - get_token_balances       # Wallet portfolio analysis
+          toolkit_config:
+            enable_analysis: true  # HOMOGENIZED: always enabled
+            storage_threshold_kb: 10  # Reduced threshold for faster storage
+
+        - class_name: CoinglassToolkit  # Derivatives analysis
+          enabled: true
+          # HOMOGENIZED: Derivatives market data tool set
+          include_tools:
+            - get_funding_rates_weighted_by_oi
+            - get_funding_rates_per_exchange
+            - get_arbitrage_opportunities
+            - get_open_interest_by_exchange
+            - get_open_interest_history
+            - get_taker_buy_sell_volume
+            - get_liquidations_by_exchange
+          toolkit_config:
+            symbols: ["BTC", "ETH", "SOL"]
+            default_symbol: BTC
+            storage_threshold_kb: 10  # HOMOGENIZED: aggressive storage
+
+        - class_name: FileToolkit  # Save insights
+          enabled: true
+          toolkit_config:
+            enable_delete: false
+            max_file_size: 10485760  # HOMOGENIZED: 10MB standard
+
+    # WRITE: Professional reports, summaries, documentation
+    # Use cases: "write analysis report", "summarize findings", "create documentation"
+    WRITE:
+      llm:
+        model: openrouter/anthropic/claude-sonnet-4.5  # Best writing quality
+        temperature: 0.3  # More creative for engaging writing
+        max_tokens: 16000  # Long-form content
+        extra_body:
+          plugins:
+            - id: web
+              engine: exa  # Use Exa search engine
+              max_results: 3  # Include 3 search results
+      prediction_strategy: react
+      # Load WRITE-specific seed prompt and demos
+      signature_instructions: "prompt_optimization.prompts.seed_prompts.executor_write_seed:EXECUTOR_WRITE_PROMPT"
+      demos: "prompt_optimization.prompts.seed_prompts.executor_write_seed:EXECUTOR_WRITE_DEMOS"
+      agent_config:
+        max_executions: 8  # Moderate iterations for refinement
+
+      # File I/O + reference data + research - HOMOGENIZED configs
+      toolkits:
+        - class_name: FileToolkit  # PRIMARY: Save reports
+          enabled: true
+          toolkit_config:
+            enable_delete: false
+            max_file_size: 10485760  # HOMOGENIZED: 10MB standard
+
+  # No default_executor needed here - agents.executor is automatically used as fallback
+
+# Runtime configuration
+runtime:
+  max_depth: 6  # Deep recursion for complex analysis
+  verbose: true
+  enable_logging: true
+  log_level: INFO
+  timeout: 120
+
+# Resilience
+resilience:
+  retry:
+    enabled: true
+    max_attempts: 5
+    strategy: exponential_backoff
+    base_delay: 2.0
+    max_delay: 60.0
+
+  circuit_breaker:
+    enabled: true
+    failure_threshold: 5
+    recovery_timeout: 120.0
+    half_open_max_calls: 3
+
+  checkpoint:
+    enabled: true
+    storage_path: ${oc.env:ROMA_CHECKPOINT_PATH,.checkpoints}
+    max_checkpoints: 20
+    max_age_hours: 48.0
+    compress_checkpoints: true
+    verify_integrity: true
+
+# Storage
+storage:
+  base_path: ${oc.env:STORAGE_BASE_PATH,/opt/sentient}
+  max_file_size: 104857600  # 100MB
+
+  postgres:
+    enabled: ${oc.env:POSTGRES_ENABLED,true}
+    connection_url: ${oc.env:DATABASE_URL,postgresql+asyncpg://localhost/roma_dspy}
+    pool_size: 10
+    max_overflow: 20
+
+# Observability
+observability:
+  mlflow:
+    enabled: ${oc.env:MLFLOW_ENABLED,false}
+    tracking_uri: ${oc.env:MLFLOW_TRACKING_URI,http://mlflow:5000}
+    experiment_name: ROMA-Crypto-Agent-Mapped
+    log_traces: true
+    log_compiles: true
+    log_evals: true
+
+# Logging
+logging:
+  level: ${oc.env:LOG_LEVEL,INFO}
+  log_dir: ${oc.env:LOG_DIR,logs}
+  console_format: detailed
+  file_format: json
+  serialize: true
+  rotation: 500 MB
+  retention: 90 days
+  colorize: true
+  backtrace: true
+  diagnose: false
